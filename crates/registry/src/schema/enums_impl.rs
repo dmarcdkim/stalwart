@@ -3582,6 +3582,7 @@ impl EnumImpl for ExpressionConstant {
             b"ipv6_only" => ExpressionConstant::Ipv6Only,
             b"ipv6_then_ipv4" => ExpressionConstant::Ipv6ThenIpv4,
             b"ipv4_then_ipv6" => ExpressionConstant::Ipv4ThenIpv6,
+            b"minutely" => ExpressionConstant::Minutely,
             b"hourly" => ExpressionConstant::Hourly,
             b"daily" => ExpressionConstant::Daily,
             b"weekly" => ExpressionConstant::Weekly,
@@ -3606,6 +3607,7 @@ impl EnumImpl for ExpressionConstant {
             ExpressionConstant::Ipv6Only => "ipv6_only",
             ExpressionConstant::Ipv6ThenIpv4 => "ipv6_then_ipv4",
             ExpressionConstant::Ipv4ThenIpv6 => "ipv4_then_ipv6",
+            ExpressionConstant::Minutely => "minutely",
             ExpressionConstant::Hourly => "hourly",
             ExpressionConstant::Daily => "daily",
             ExpressionConstant::Weekly => "weekly",
@@ -3644,11 +3646,12 @@ impl EnumImpl for ExpressionConstant {
             16 => Some(ExpressionConstant::Mixer),
             17 => Some(ExpressionConstant::Stanag4406),
             18 => Some(ExpressionConstant::Nsep),
+            19 => Some(ExpressionConstant::Minutely),
             _ => None,
         }
     }
 
-    const COUNT: usize = 19;
+    const COUNT: usize = 20;
 }
 
 impl serde::Serialize for ExpressionConstant {

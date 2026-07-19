@@ -67,6 +67,11 @@ pub struct Report {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AggregateFrequency {
+    /// Sub-hourly aggregation, for deployments that need a report back quickly
+    /// (DMARC configuration testing) rather than the low-volume periodic
+    /// reporting RFC 7489 §7.2 has in mind. Reports at this frequency are sent
+    /// without the usual randomized send spread; see `send_spread_secs`.
+    Minutely,
     Hourly,
     Daily,
     Weekly,
@@ -233,6 +238,7 @@ impl<'x> TryFrom<Variable<'x>> for AggregateFrequency {
     fn try_from(value: Variable<'x>) -> Result<Self, Self::Error> {
         match value {
             Variable::Constant(ExpressionConstant::Disable) => Ok(AggregateFrequency::Never),
+            Variable::Constant(ExpressionConstant::Minutely) => Ok(AggregateFrequency::Minutely),
             Variable::Constant(ExpressionConstant::Hourly) => Ok(AggregateFrequency::Hourly),
             Variable::Constant(ExpressionConstant::Daily) => Ok(AggregateFrequency::Daily),
             Variable::Constant(ExpressionConstant::Weekly) => Ok(AggregateFrequency::Weekly),

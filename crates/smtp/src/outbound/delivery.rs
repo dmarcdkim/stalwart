@@ -340,7 +340,8 @@ impl QueuedMessage {
                     .await
                     .unwrap_or(AggregateFrequency::Never)
                 {
-                    interval @ (AggregateFrequency::Hourly
+                    interval @ (AggregateFrequency::Minutely
+                    | AggregateFrequency::Hourly
                     | AggregateFrequency::Daily
                     | AggregateFrequency::Weekly) => {
                         let time = Instant::now();

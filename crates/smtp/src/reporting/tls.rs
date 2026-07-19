@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
-use super::AggregateTimestamp;
+use super::{AggregateTimestamp, send_spread_secs};
 use crate::{
     queue::RecipientDomain,
     reporting::{index::InternalReportIndex, send::MtaReportSend},
@@ -216,7 +216,7 @@ impl TlsReporting for Server {
                 report.mail_rua.iter().map(|v| v.as_str()),
                 message,
                 &config.sign,
-                false,
+                send_spread_secs(event_to.saturating_sub(event_from)),
                 span_id,
             )
             .await;

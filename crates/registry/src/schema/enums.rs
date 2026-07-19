@@ -731,6 +731,9 @@ pub enum ExpressionConstant {
     Hourly = 9,
     Daily = 10,
     Weekly = 11,
+    // Discriminants are persisted, so this is appended at the end of the numbering
+    // even though it is grouped with the other frequencies for readability.
+    Minutely = 19,
     Login = 12,
     Plain = 13,
     Xoauth2 = 14,
@@ -3949,6 +3952,7 @@ pub static SPAM_URL_VARIABLE: &[ExpressionVariable] = &[
 ];
 
 pub static MTA_AGGREGATE_CONSTANT: &[ExpressionConstant] = &[
+    ExpressionConstant::Minutely,
     ExpressionConstant::Hourly,
     ExpressionConstant::Daily,
     ExpressionConstant::Weekly,

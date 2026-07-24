@@ -50,6 +50,16 @@ pub trait InternalReportIndex: ObjectImpl {
 
             self.set_deliver_at(at);
 
+            // dmarcdkim fork (upstream bug): the value of a TaskQueue `Due` key must
+            // be the *TaskType* id, exactly as `BatchBuilder::schedule_task_with_id`
+            // writes it on the creation path. Upstream wrote `object_id` here -- an
+            // ObjectType id (DmarcInternalReport = 33) -- which the task manager then
+            // rejects in `TaskType::from_id` (valid 0..=17), raising DataCorruption
+            // and aborting the *entire* task-queue iteration, wedging every task at or
+            // after this timestamp (ACME renewal included). Triggered by patching
+            // `deliverAt` on a report via the management API.
+            let task_type_id = self.task(item_id).object_type().to_id();
+
             batch
                 .assert_value(key.clone(), AssertValue::Hash(revision))
                 .clear(ValueClass::TaskQueue(TaskQueueClass::Due {
@@ -61,7 +71,7 @@ pub trait InternalReportIndex: ObjectImpl {
                         id: item_id,
                         due: at.timestamp() as u64,
                     }),
-                    object_id.serialize(),
+                    task_type_id.serialize(),
                 )
                 .set(key, self.to_pickled_vec());
         }

@@ -337,7 +337,8 @@ impl QueuedMessage {
                     .await
                     .unwrap_or(AggregateFrequency::Never)
                 {
-                    interval @ (AggregateFrequency::Hourly
+                    interval @ (AggregateFrequency::Minutely
+                    | AggregateFrequency::Hourly
                     | AggregateFrequency::Daily
                     | AggregateFrequency::Weekly) => {
                         let time = Instant::now();
@@ -392,7 +393,9 @@ impl QueuedMessage {
                             }
                         }
                     }
-                    _ => None,
+                    // Exhaustive on purpose: a catch-all here would let a frequency
+                    // silently disable TLS reporting instead of failing to build.
+                    AggregateFrequency::Never => None,
                 }
             } else {
                 None

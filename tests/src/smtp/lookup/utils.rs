@@ -321,6 +321,11 @@ max_age: 86400
 fn aggregate_to_timestamp() {
     for (freq, date, expected) in [
         (
+            AggregateFrequency::Minutely,
+            "2023-01-24T09:10:40Z",
+            "2023-01-24T09:10:00Z",
+        ),
+        (
             AggregateFrequency::Hourly,
             "2023-01-24T09:10:40Z",
             "2023-01-24T09:00:00Z",

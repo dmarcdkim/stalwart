@@ -20,7 +20,7 @@ pub trait MtaReportSend: Sync + Send {
         rcpts: impl Iterator<Item = impl AsRef<str> + Sync + Send> + Sync + Send,
         report: Vec<u8>,
         sign_config: &IfBlock,
-        deliver_now: bool,
+        send_spread_secs: u64,
         parent_session_id: u64,
     ) -> impl Future<Output = ()> + Send;
 
@@ -46,7 +46,7 @@ impl MtaReportSend for Server {
         rcpts: impl Iterator<Item = impl AsRef<str> + Sync + Send> + Sync + Send,
         report: Vec<u8>,
         sign_config: &IfBlock,
-        deliver_now: bool,
+        send_spread_secs: u64,
         parent_session_id: u64,
     ) {
         // Build message
@@ -55,14 +55,15 @@ impl MtaReportSend for Server {
             message.add_expanded_recipient(rcpt_.as_ref(), self).await;
         }
 
-        // Schedule delivery at a random time between now and the next 3 hours
-        if !deliver_now {
+        // Spread delivery over a random point in the caller's window, so that
+        // reports for many domains are not all sent at the same instant.
+        if send_spread_secs > 0 {
             #[cfg(not(feature = "test_mode"))]
             {
                 use common::config::smtp::queue::QueueExpiry;
                 use rand::Rng;
 
-                let delivery_time = rand::rng().random_range(0u64..10800u64);
+                let delivery_time = rand::rng().random_range(0u64..send_spread_secs);
                 for rcpt in &mut message.message.recipients {
                     rcpt.retry.due += delivery_time;
                     rcpt.notify.due += delivery_time;

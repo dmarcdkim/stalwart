@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-SEL
  */
 
-use super::AggregateTimestamp;
+use super::{AggregateTimestamp, send_spread_secs};
 use crate::{
     core::Session,
     queue::RecipientDomain,
@@ -242,7 +242,7 @@ impl<T: SessionStream> Session<T> {
                         rcpts.into_iter(),
                         report,
                         &config.sign,
-                        true,
+                        0,
                         self.data.session_id,
                     )
                     .await;
@@ -448,7 +448,7 @@ impl DmarcReporting for Server {
             rua.iter(),
             message,
             &config.sign,
-            false,
+            send_spread_secs(event_to.saturating_sub(event_from)),
             span_id,
         )
         .await;
@@ -520,6 +520,7 @@ impl DmarcReporting for Server {
 
             // Create report if missing
             let config = &self.core.smtp.report.dmarc_aggregate;
+            let mut is_new_report = false;
             let (item_id, mut report) = if let Some((mut object_id_v, report)) = report {
                 batch.assert_value(pk.clone(), AssertValue::U32(object_id_v.version));
                 object_id_v.version += 1;
@@ -527,6 +528,7 @@ impl DmarcReporting for Server {
 
                 (object_id_v.object_id.id().id(), report)
             } else {
+                is_new_report = true;
                 let item_id = self.inner.data.queue_id_gen.generate();
                 let date_range_begin = UTCDateTime::now();
                 let date_range_end = UTCDateTime::from_timestamp(
@@ -649,6 +651,13 @@ impl DmarcReporting for Server {
 
             match self.core.storage.data.write(batch.build_all()).await {
                 Ok(_) => {
+                    // Opening a report puts a new entry in the task queue, possibly
+                    // due sooner than the wake-up the task manager is currently
+                    // sleeping on. Appending a record to an existing report does not
+                    // move its deliver_at, so only the former needs a nudge.
+                    if is_new_report {
+                        self.notify_task_queue();
+                    }
                     break;
                 }
                 Err(err) => {

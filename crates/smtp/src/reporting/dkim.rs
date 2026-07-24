@@ -93,7 +93,7 @@ impl<T: SessionStream> Session<T> {
                 [rcpt].into_iter(),
                 report,
                 &config.sign,
-                true,
+                0,
                 self.data.session_id,
             )
             .await;

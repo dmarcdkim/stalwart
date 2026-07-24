@@ -6456,12 +6456,15 @@ name = "registry"
 version = "0.16.14"
 dependencies = [
  "ahash",
+ "base64 0.22.1",
+ "flate2",
  "hashify",
  "jmap-tools",
  "lz4_flex 0.13.1",
  "mail-auth",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tokio",
  "trc",
  "types",

@@ -1,0 +1,49 @@
+name: "dmarcdkim checks"
+
+# Invariants that nothing else in this tree enforces.
+#
+# `resources/schema/schema.json.gz` is a generated artifact with no generator in
+# the workspace: it is served verbatim by `GET /api/schema`, and
+# `schema.json.sha256` is the unpadded base64url SHA-256 of the gzip bytes,
+# inlined into the immutable cache URL by `include_str!`. A stale or hand-edited
+# blob compiles, links and boots; it just hands clients an enum table that
+# disagrees with the server, under a cache key they will not refetch. Hence a
+# test.
+#
+# Scoped to `registry` (a leaf crate) plus the `smtp` lib, so it can gate the
+# image build without paying for a second full workspace compile.
+
+on:
+  # Branches only. Tag pushes reach this workflow through the image build's
+  # `checks` job instead, so a release does not run it twice.
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Schema resources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Blob is regenerated, not hand-edited
+        run: python3 resources/schema/regenerate.py --check
+
+      - name: Blob agrees with the Rust enums
+        run: cargo test -p registry --test schema_resource
+
+      # `test_mode` is required to build the smtp lib's test target at all
+      # (mail_auth::mock_resolve is gated behind it upstream).
+      - name: Report scheduling
+        run: cargo test -p smtp --lib --features test_mode
+
+      - name: Style
+        run: cargo fmt --all --check

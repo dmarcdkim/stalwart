@@ -1,0 +1,98 @@
+name: "dmarcdkim image"
+
+# Builds the DmarcDkim fork of Stalwart and publishes it to GHCR.
+#
+# The infrastructure repo pins this image BY DIGEST (not by tag), because the
+# mail-edge droplet's systemd unit runs `docker compose up -d` with no
+# `docker compose pull` and no `pull_policy` -- a re-pushed tag would leave the
+# droplet on the old binary indefinitely. Copy the digest from this run's summary
+# into mail-edge/ansible/roles/mail_edge_services/defaults/main.yml.
+#
+# Tag scheme: `fork-<upstream-version>-<n>`, e.g. `fork-0.16.13-1`. The upstream
+# version is in the tag so it is obvious which release a given image is based on,
+# and `n` increments per build against that base.
+#
+# Do NOT use a `v`-prefixed scheme. Upstream's ci.yml fires on `v*.*.*`, and `*`
+# matches dots, so a tag like `v0.16.13-fork.1` WOULD trigger it.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["fork-*"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  # Upstream's Dockerfile default minus `enterprise`: that code is licensed
+  # SELv2 only, and we have no commercial licence, so we ship a purely
+  # AGPL-3.0-only binary. See the CARGO_FEATURES ARG in the Dockerfile.
+  CARGO_FEATURES: "sqlite postgres mysql rocks s3 redis azure nats"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # A stale schema blob produces an image that boots and then serves clients an
+  # enum table the server disagrees with. Two minutes here beats finding out
+  # after an hour of LTO.
+  checks:
+    uses: ./.github/workflows/dmarcdkim-check.yml
+
+  build:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Deliberately NO `latest`. The infrastructure repo pins this image by
+          # digest precisely to avoid a floating pointer; publishing a moving
+          # `latest` alongside it just reintroduces the failure mode elsewhere.
+          tags: |
+            type=ref,event=tag
+            type=sha,format=long
+
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          # The simple Dockerfile, not Dockerfile.build (zig/sccache/multi-target).
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CARGO_FEATURES=${{ env.CARGO_FEATURES }}
+          # lto=true + codegen-units=1 over a 27-crate workspace: expect ~45-90min
+          # cold, ~15-30min warm. If the 10GB Actions cache starts evicting between
+          # runs, switch to type=registry,ref=...:buildcache.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### Image published"
+            echo
+            echo '```'
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+            echo '```'
+            echo
+            echo "Pin this digest in \`mail-edge/ansible/roles/mail_edge_services/defaults/main.yml\`"
+            echo "as \`stalwart_image\`. Do not pin by tag."
+            echo
+            echo "Features: \`${{ env.CARGO_FEATURES }}\` (no \`enterprise\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
